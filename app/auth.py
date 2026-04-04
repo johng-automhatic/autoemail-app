@@ -57,7 +57,7 @@ def get_login_url(settings: Settings, state: str = "") -> str:
     """Generate Entra ID authorization URL."""
     app = _get_msal_app(settings)
     flow = app.initiate_auth_code_flow(
-        scopes=["openid", "profile", "email"],
+        scopes=["User.Read"],
         redirect_uri=settings.app_redirect_uri,
         state=state,
     )

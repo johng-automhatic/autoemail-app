@@ -62,7 +62,17 @@ app.include_router(email_log.router)
 
 # ── Exception handler for unauthenticated users ───────────────────────────────
 
-@app.exception_handler(401)
-async def unauthorized_redirect(request: Request, exc):
-    """Redirect unauthenticated users to login."""
-    return RedirectResponse(url="/auth/login")
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Redirect unauthenticated users to login, pass through other errors."""
+    if exc.status_code == 401:
+        # Don't redirect if already on an auth route to avoid loops
+        if request.url.path.startswith("/auth/"):
+            from fastapi.responses import PlainTextResponse
+            return PlainTextResponse("Authentication failed. Check Entra ID configuration.", status_code=401)
+        return RedirectResponse(url="/auth/login")
+    # Re-raise other HTTP exceptions
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(str(exc.detail), status_code=exc.status_code)

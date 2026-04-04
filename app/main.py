@@ -43,13 +43,15 @@ app = FastAPI(
 )
 
 # Session middleware for auth (cookie-based sessions)
+# Note: https_only=False because App Service terminates SSL at the LB;
+# the app sees HTTP internally even though the user is on HTTPS.
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.secret_key,
     session_cookie="efm_session",
     max_age=3600 * 8,  # 8-hour session
     same_site="lax",
-    https_only=True,
+    https_only=False,
 )
 
 # Static files

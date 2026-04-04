@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Email Log - Email Flow Manager{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Email Log</h1>
+</div>
+
+<!-- Filters -->
+<div class="filter-bar">
+    <form method="GET" action="/logs" class="filter-form">
+        <div class="filter-group">
+            <label for="status">Status</label>
+            <select name="status" id="status" onchange="this.form.submit()">
+                <option value="">All</option>
+                {% for s in statuses %}
+                <option value="{{ s }}" {{ 'selected' if status_filter == s }}>{{ s }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% if flow_id_filter %}
+        <input type="hidden" name="flow_id" value="{{ flow_id_filter }}">
+        {% endif %}
+    </form>
+    <span class="filter-count">{{ total }} record{{ 's' if total != 1 }}</span>
+</div>
+
+<!-- Log Table -->
+{% if jobs %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Flow</th>
+            <th>Recipient</th>
+            <th>Status</th>
+            <th>Operation ID</th>
+            <th>Sent At</th>
+            <th>Error</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for job in jobs %}
+        <tr>
+            <td>{{ job.id }}</td>
+            <td><a href="/flows/{{ job.flow_id }}">{{ flows_map.get(job.flow_id, 'Flow #' ~ job.flow_id) }}</a></td>
+            <td>{{ job.to_email }}</td>
+            <td><span class="badge badge-{{ job.status.value | lower }}">{{ job.status.value }}</span></td>
+            <td class="mono">
+                {% if job.send_attempts %}
+                    {{ job.send_attempts[-1].operation_id or '—' }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+            <td>{{ job.sent_at.strftime('%Y-%m-%d %I:%M:%S') if job.sent_at else '—' }}</td>
+            <td class="text-danger">{{ job.error_message | truncate(80) if job.error_message else '' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% if page > 1 %}
+        <a href="/logs?page={{ page - 1 }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="btn btn-sm">&laquo; Prev</a>
+    {% endif %}
+    <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
+    {% if page < total_pages %}
+        <a href="/logs?page={{ page + 1 }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="btn btn-sm">Next &raquo;</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<p class="empty-state">No email records found.</p>
+{% endif %}
+{% endblock %}

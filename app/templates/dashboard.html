@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Email Flow Manager{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Dashboard</h1>
+    <a href="/flows/new" class="btn btn-primary">New Email Flow</a>
+</div>
+
+<!-- Summary Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-number">{{ pending_count }}</div>
+        <div class="stat-label">Pending</div>
+    </div>
+    <div class="stat-card stat-sending">
+        <div class="stat-number">{{ sending_count }}</div>
+        <div class="stat-label">Sending</div>
+    </div>
+    <div class="stat-card stat-sent">
+        <div class="stat-number">{{ sent_count }}</div>
+        <div class="stat-label">Sent</div>
+    </div>
+    <div class="stat-card stat-failed">
+        <div class="stat-number">{{ failed_count }}</div>
+        <div class="stat-label">Failed</div>
+    </div>
+</div>
+
+<!-- Next Scheduled -->
+{% if next_scheduled %}
+<div class="info-box">
+    <strong>Next scheduled batch:</strong>
+    <a href="/flows/{{ next_scheduled.id }}">{{ next_scheduled.name }}</a>
+    &mdash; {{ next_scheduled.send_at.strftime('%Y-%m-%d %I:%M %p') if next_scheduled.send_at else 'Immediate' }}
+</div>
+{% endif %}
+
+<!-- Recent Flows -->
+<div class="section">
+    <h2>Recent Flows</h2>
+    {% if recent_flows %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Status</th>
+                <th>From</th>
+                <th>Send Date</th>
+                <th>Updated</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for flow in recent_flows %}
+            <tr>
+                <td><a href="/flows/{{ flow.id }}">{{ flow.name }}</a></td>
+                <td><span class="badge badge-{{ flow.status.value | lower }}">{{ flow.status.value }}</span></td>
+                <td>{{ flow.from_email }}</td>
+                <td>{{ flow.send_at.strftime('%Y-%m-%d %I:%M %p') if flow.send_at else '—' }}</td>
+                <td>{{ flow.updated_at.strftime('%Y-%m-%d %I:%M %p') if flow.updated_at else '' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">No email flows yet. <a href="/flows/new">Create your first flow</a></p>
+    {% endif %}
+</div>
+{% endblock %}

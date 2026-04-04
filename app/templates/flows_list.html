@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Email Flows - Email Flow Manager{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Email Flows</h1>
+    <a href="/flows/new" class="btn btn-primary">New Flow</a>
+</div>
+
+{% if flows %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Status</th>
+            <th>From</th>
+            <th>Subject</th>
+            <th>Recipients</th>
+            <th>Sent</th>
+            <th>Failed</th>
+            <th>Send Date</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for flow in flows %}
+        <tr>
+            <td><a href="/flows/{{ flow.id }}">{{ flow.name }}</a></td>
+            <td><span class="badge badge-{{ flow.status.value | lower }}">{{ flow.status.value }}</span></td>
+            <td>{{ flow.from_email }}</td>
+            <td>{{ flow.subject | truncate(40) }}</td>
+            <td>{{ flow_stats[flow.id].total }}</td>
+            <td>{{ flow_stats[flow.id].sent }}</td>
+            <td>{{ flow_stats[flow.id].failed }}</td>
+            <td>{{ flow.send_at.strftime('%Y-%m-%d %I:%M %p') if flow.send_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+    <p>No email flows yet.</p>
+    <a href="/flows/new" class="btn btn-primary">Create Your First Flow</a>
+</div>
+{% endif %}
+{% endblock %}

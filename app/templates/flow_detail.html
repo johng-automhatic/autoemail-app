@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}{{ flow.name }} - Email Flow Manager{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ flow.name }}</h1>
+    <div class="header-actions">
+        <span class="badge badge-{{ flow.status.value | lower }} badge-lg">{{ flow.status.value }}</span>
+        {% if flow.status.value in ['Draft', 'Scheduled'] %}
+            <a href="/flows/{{ flow.id }}/edit" class="btn btn-secondary">Edit</a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Flow Info -->
+<div class="detail-grid">
+    <div class="detail-item">
+        <span class="detail-label">From</span>
+        <span class="detail-value">{{ flow.from_email }}</span>
+    </div>
+    <div class="detail-item">
+        <span class="detail-label">Subject</span>
+        <span class="detail-value">{{ flow.subject }}</span>
+    </div>
+    <div class="detail-item">
+        <span class="detail-label">Send At</span>
+        <span class="detail-value">{{ flow.send_at.strftime('%Y-%m-%d %I:%M %p') if flow.send_at else 'Immediate (when started)' }}</span>
+    </div>
+    <div class="detail-item">
+        <span class="detail-label">Timezone</span>
+        <span class="detail-value">{{ flow.timezone }}</span>
+    </div>
+    <div class="detail-item">
+        <span class="detail-label">Created By</span>
+        <span class="detail-value">{{ flow.created_by or '—' }}</span>
+    </div>
+    <div class="detail-item">
+        <span class="detail-label">Created</span>
+        <span class="detail-value">{{ flow.created_at.strftime('%Y-%m-%d %I:%M %p') if flow.created_at else '' }}</span>
+    </div>
+</div>
+
+<!-- Job Stats -->
+<div class="stats-grid stats-grid-sm">
+    <div class="stat-card">
+        <div class="stat-number">{{ job_counts.values() | sum if job_counts else 0 }}</div>
+        <div class="stat-label">Total Recipients</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ (job_counts.get('Pending', 0) if job_counts.get('Pending') else 0) + (job_counts.get('Scheduled', 0) if job_counts.get('Scheduled') else 0) }}</div>
+        <div class="stat-label">Pending</div>
+    </div>
+    <div class="stat-card stat-sent">
+        <div class="stat-number">{{ job_counts.get('Sent', 0) if job_counts.get('Sent') else 0 }}</div>
+        <div class="stat-label">Sent</div>
+    </div>
+    <div class="stat-card stat-failed">
+        <div class="stat-number">{{ job_counts.get('Failed', 0) if job_counts.get('Failed') else 0 }}</div>
+        <div class="stat-label">Failed</div>
+    </div>
+</div>
+
+<!-- Actions -->
+{% if flow.status.value == 'Draft' %}
+<div class="action-bar">
+    <!-- Upload CSV -->
+    <form method="POST" action="/flows/{{ flow.id }}/upload-csv" enctype="multipart/form-data" class="inline-form">
+        <label class="btn btn-secondary btn-file">
+            Upload CSV
+            <input type="file" name="csv_file" accept=".csv" onchange="this.form.submit()" hidden>
+        </label>
+    </form>
+
+    <!-- Upload Attachments -->
+    <form method="POST" action="/flows/{{ flow.id }}/upload-attachments" enctype="multipart/form-data" class="inline-form">
+        <label class="btn btn-secondary btn-file">
+            Upload Attachments
+            <input type="file" name="files" multiple onchange="this.form.submit()" hidden>
+        </label>
+    </form>
+
+    <!-- Schedule -->
+    <form method="POST" action="/flows/{{ flow.id }}/schedule" class="inline-form">
+        <button type="submit" class="btn btn-primary">Schedule</button>
+    </form>
+
+    <!-- Start Now -->
+    <form method="POST" action="/flows/{{ flow.id }}/start" class="inline-form">
+        <button type="submit" class="btn btn-success"
+                onclick="return confirm('Send emails now to all recipients?')">
+            Start Now
+        </button>
+    </form>
+</div>
+{% elif flow.status.value == 'Scheduled' %}
+<div class="action-bar">
+    <form method="POST" action="/flows/{{ flow.id }}/start" class="inline-form">
+        <button type="submit" class="btn btn-success">Start Now</button>
+    </form>
+    <form method="POST" action="/flows/{{ flow.id }}/cancel" class="inline-form">
+        <button type="submit" class="btn btn-danger"
+                onclick="return confirm('Cancel this flow? Unsent emails will not be processed.')">
+            Cancel Flow
+        </button>
+    </form>
+</div>
+{% elif flow.status.value == 'Processing' %}
+<div class="action-bar">
+    <form method="POST" action="/flows/{{ flow.id }}/cancel" class="inline-form">
+        <button type="submit" class="btn btn-danger"
+                onclick="return confirm('Cancel remaining emails in this flow?')">
+            Cancel Remaining
+        </button>
+    </form>
+</div>
+{% endif %}
+
+<!-- Attachments -->
+{% if flow.attachments %}
+<div class="section">
+    <h2>Attachments</h2>
+    <ul class="attachment-list">
+        {% for att in flow.attachments %}
+        <li>
+            <span class="att-icon">📎</span>
+            <span class="att-name">{{ att.filename }}</span>
+            <span class="att-size">{{ (att.file_size / 1024) | round(1) }} KB</span>
+            {% if att.recipient_job_id %}
+                <span class="badge badge-sm">Per-row</span>
+            {% else %}
+                <span class="badge badge-sm">All recipients</span>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<!-- CSV Imports -->
+{% if flow.csv_imports %}
+<div class="section">
+    <h2>CSV Imports</h2>
+    <table class="table table-sm">
+        <thead>
+            <tr>
+                <th>Filename</th>
+                <th>Rows</th>
+                <th>Valid</th>
+                <th>Errors</th>
+                <th>Uploaded</th>
+                <th>By</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for imp in flow.csv_imports %}
+            <tr>
+                <td>{{ imp.original_filename }}</td>
+                <td>{{ imp.row_count }}</td>
+                <td>{{ imp.valid_rows }}</td>
+                <td>{{ imp.error_rows }}</td>
+                <td>{{ imp.uploaded_at.strftime('%Y-%m-%d %I:%M %p') if imp.uploaded_at else '' }}</td>
+                <td>{{ imp.uploaded_by or '—' }}</td>
+            </tr>
+            {% if imp.validation_errors %}
+            <tr>
+                <td colspan="6">
+                    <details>
+                        <summary class="text-danger">{{ imp.validation_errors | length }} validation error(s)</summary>
+                        <ul class="error-list">
+                            {% for err in imp.validation_errors %}
+                            <li>Row {{ err.row }}, {{ err.field }}: {{ err.error }}</li>
+                            {% endfor %}
+                        </ul>
+                    </details>
+                </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Recipient Jobs Preview -->
+<div class="section">
+    <h2>Recipients</h2>
+    {% if jobs %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Email</th>
+                <th>Status</th>
+                <th>Merge Fields</th>
+                <th>Scheduled</th>
+                <th>Sent At</th>
+                <th>Error</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for job in jobs %}
+            <tr>
+                <td>{{ job.to_email }}</td>
+                <td><span class="badge badge-{{ job.status.value | lower }}">{{ job.status.value }}</span></td>
+                <td class="merge-fields">
+                    {% if job.merge_fields %}
+                        {% for key, val in job.merge_fields.items() %}
+                            <span class="merge-tag">{{ key }}: {{ val }}</span>
+                        {% endfor %}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>{{ job.scheduled_at.strftime('%m/%d %I:%M %p') if job.scheduled_at else '—' }}</td>
+                <td>{{ job.sent_at.strftime('%m/%d %I:%M %p') if job.sent_at else '—' }}</td>
+                <td class="text-danger">{{ job.error_message | truncate(60) if job.error_message else '' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">No recipients yet. Upload a CSV to add recipients.</p>
+    {% endif %}
+</div>
+
+<!-- Email Body Preview -->
+<div class="section">
+    <h2>Email Body Preview</h2>
+    <div class="email-preview">
+        {{ flow.body_html | safe if flow.body_html else '<p class="empty-state">No email body configured.</p>' }}
+    </div>
+</div>
+{% endblock %}

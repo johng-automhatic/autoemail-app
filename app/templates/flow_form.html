@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit" if flow else "New" }} Flow - Email Flow Manager{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ "Edit" if flow else "New" }} Email Flow</h1>
+</div>
+
+<form method="POST" action="{{ '/flows/' ~ flow.id ~ '/edit' if flow else '/flows/new' }}" class="form">
+    <div class="form-group">
+        <label for="name">Flow Name</label>
+        <input type="text" id="name" name="name" required
+               value="{{ flow.name if flow else '' }}"
+               placeholder="e.g., March Newsletter, Payment Reminders">
+    </div>
+
+    <div class="form-row">
+        <div class="form-group">
+            <label for="from_email">From Email</label>
+            <input type="email" id="from_email" name="from_email" required
+                   value="{{ flow.from_email if flow else '' }}"
+                   placeholder="noreply@yourdomain.com">
+            <small>Must be a verified sender in Azure Communication Services</small>
+        </div>
+
+        <div class="form-group">
+            <label for="subject">Subject Line</label>
+            <input type="text" id="subject" name="subject" required
+                   value="{{ flow.subject if flow else '' }}"
+                   placeholder="Use {{first_name}} for merge fields">
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="form-group">
+            <label for="send_at">Send Date &amp; Time</label>
+            <input type="datetime-local" id="send_at" name="send_at"
+                   value="{{ flow.send_at.strftime('%Y-%m-%dT%H:%M') if flow and flow.send_at else '' }}">
+            <small>Leave blank to send immediately when started</small>
+        </div>
+
+        <div class="form-group">
+            <label for="timezone_str">Timezone</label>
+            <select id="timezone_str" name="timezone_str">
+                <option value="America/New_York" {{ 'selected' if not flow or flow.timezone == 'America/New_York' }}>Eastern (ET)</option>
+                <option value="America/Chicago" {{ 'selected' if flow and flow.timezone == 'America/Chicago' }}>Central (CT)</option>
+                <option value="America/Denver" {{ 'selected' if flow and flow.timezone == 'America/Denver' }}>Mountain (MT)</option>
+                <option value="America/Los_Angeles" {{ 'selected' if flow and flow.timezone == 'America/Los_Angeles' }}>Pacific (PT)</option>
+                <option value="UTC" {{ 'selected' if flow and flow.timezone == 'UTC' }}>UTC</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="body_html">Email Body (HTML)</label>
+        <textarea id="body_html" name="body_html" rows="15"
+                  placeholder="<h1>Hello {{first_name}},</h1>&#10;<p>Your message here...</p>&#10;&#10;Available merge fields from your CSV columns: {{first_name}}, {{last_name}}, {{company}}, etc.">{{ flow.body_html if flow else '' }}</textarea>
+        <small>Use <code>{{ '{{field_name}}' }}</code> syntax for merge fields. Fields come from your CSV column headers.</small>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">
+            {{ "Update Flow" if flow else "Create Flow" }}
+        </button>
+        <a href="{{ '/flows/' ~ flow.id if flow else '/flows' }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}

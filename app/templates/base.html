@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Email Flow Manager{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="/">Email Flow Manager</a>
+        </div>
+        <div class="nav-links">
+            <a href="/" class="nav-link">Dashboard</a>
+            <a href="/flows" class="nav-link">Flows</a>
+            <a href="/logs" class="nav-link">Email Log</a>
+        </div>
+        <div class="nav-user">
+            {% if user %}
+                <span class="user-name">{{ user.name }}</span>
+                <a href="/auth/logout" class="nav-link logout">Sign Out</a>
+            {% else %}
+                <a href="/auth/login" class="nav-link">Sign In</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>Email Flow Manager &mdash; Powered by Azure Communication Services</p>
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

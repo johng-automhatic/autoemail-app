@@ -27,10 +27,11 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     logger.info("Starting Email Flow Manager")
-    start_scheduler()
+    # Scheduler disabled until DB is connected and migrated
+    # start_scheduler()
     yield
     logger.info("Shutting down Email Flow Manager")
-    stop_scheduler()
+    # stop_scheduler()
 
 
 # ── App ────────────────────────────────────────────────────────────────────────
@@ -62,6 +63,11 @@ app.include_router(auth_routes.router)
 app.include_router(dashboard.router)
 app.include_router(flows.router)
 app.include_router(email_log.router)
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 # ── Exception handler for unauthenticated users ───────────────────────────────

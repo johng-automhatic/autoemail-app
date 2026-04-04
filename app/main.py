@@ -48,6 +48,8 @@ app.add_middleware(
     secret_key=settings.secret_key,
     session_cookie="efm_session",
     max_age=3600 * 8,  # 8-hour session
+    same_site="lax",
+    https_only=True,
 )
 
 # Static files

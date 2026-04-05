@@ -48,7 +48,7 @@ class EmailFlow(Base):
     body_html = Column(Text, nullable=False, default="")
     send_at = Column(DateTime(timezone=True), nullable=True)
     timezone = Column(String(64), default="America/New_York")
-    status = Column(Enum(FlowStatus), default=FlowStatus.DRAFT, nullable=False)
+    status = Column(Enum(FlowStatus, values_callable=lambda e: [x.value for x in e]), default=FlowStatus.DRAFT, nullable=False)
     created_by = Column(String(320), nullable=True)  # Entra ID user email/OID
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -109,7 +109,7 @@ class EmailRecipientJob(Base):
     to_email = Column(String(320), nullable=False)
     merge_fields = Column(JSON, nullable=True)  # {"FirstName": "John", "Company": "Acme", ...}
     attachment_refs = Column(JSON, nullable=True)  # Per-row attachment blob paths if applicable
-    status = Column(Enum(JobStatus), default=JobStatus.PENDING, nullable=False)
+    status = Column(Enum(JobStatus, values_callable=lambda e: [x.value for x in e]), default=JobStatus.PENDING, nullable=False)
     scheduled_at = Column(DateTime(timezone=True), nullable=True)
     sent_at = Column(DateTime(timezone=True), nullable=True)
     error_message = Column(Text, nullable=True)

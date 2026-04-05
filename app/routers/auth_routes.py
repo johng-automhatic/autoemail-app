@@ -77,14 +77,12 @@ async def auth_callback(request: Request):
         logger.error("Auth failed: %s", error_desc)
         return PlainTextResponse(f"Auth failed: {error_desc}", status_code=401)
 
-    # Store tokens in session
-    request.session["id_token"] = result.get("id_token")
-    request.session["access_token"] = result.get("access_token")
-
-    # Extract user info from id_token claims
+    # Store ONLY minimal user info in session (not full tokens — they exceed cookie size limit)
     id_claims = result.get("id_token_claims", {})
+    request.session["authenticated"] = True
     request.session["user_name"] = id_claims.get("name", "")
     request.session["user_email"] = id_claims.get("preferred_username", "")
+    request.session["user_oid"] = id_claims.get("oid", "")
     request.session["user_roles"] = id_claims.get("roles", [])
 
     logger.info("User logged in: %s", request.session.get("user_email"))

@@ -130,22 +130,24 @@ class CurrentUser:
 # ── FastAPI dependencies ───────────────────────────────────────────────────────
 
 async def get_current_user(request: Request) -> CurrentUser:
-    """Extract and validate the current user from the session cookie.
+    """Extract the current user from session data.
 
-    In production, the session stores the id_token after Entra ID login.
-    For development/testing, you can set DEV_BYPASS_AUTH=1 in .env.
+    Session stores minimal user info (name, email, roles) set during login callback.
+    No JWT validation needed since the session cookie itself is cryptographically signed.
     """
-    settings = get_settings()
-
-    token = request.session.get("id_token")
-    if not token:
+    if not request.session.get("authenticated"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated. Please sign in.",
             headers={"Location": "/auth/login"},
         )
 
-    claims = await validate_token(token, settings)
+    claims = {
+        "oid": request.session.get("user_oid", ""),
+        "preferred_username": request.session.get("user_email", ""),
+        "name": request.session.get("user_name", ""),
+        "roles": request.session.get("user_roles", []),
+    }
     return CurrentUser(claims)
 
 

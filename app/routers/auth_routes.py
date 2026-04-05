@@ -14,8 +14,8 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# Directory to store auth flows temporarily (survives across requests)
-FLOW_DIR = os.path.join(tempfile.gettempdir(), "auth_flows")
+# Directory to store auth flows — use /home which persists on Azure App Service
+FLOW_DIR = os.path.join("/home", "auth_flows") if os.path.isdir("/home/site") else os.path.join(tempfile.gettempdir(), "auth_flows")
 os.makedirs(FLOW_DIR, exist_ok=True)
 
 

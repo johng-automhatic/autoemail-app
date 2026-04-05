@@ -1,6 +1,10 @@
 """Authentication routes: login, callback, logout."""
 
+import json
+import hashlib
 import logging
+import os
+import tempfile
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import RedirectResponse
 
@@ -10,14 +14,31 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# Directory to store auth flows temporarily (survives across requests)
+FLOW_DIR = os.path.join(tempfile.gettempdir(), "auth_flows")
+os.makedirs(FLOW_DIR, exist_ok=True)
+
+
+def _flow_path(state: str) -> str:
+    """Get file path for a given auth flow state."""
+    safe = hashlib.sha256(state.encode()).hexdigest()[:16]
+    return os.path.join(FLOW_DIR, f"flow_{safe}.json")
+
 
 @router.get("/login")
 async def login(request: Request):
     """Redirect user to Microsoft Entra ID login page."""
     settings = get_settings()
     flow = get_login_url(settings)
-    # Store the auth flow in session for callback validation
-    request.session["auth_flow"] = flow
+
+    # Store the auth flow on disk keyed by state parameter
+    state = flow.get("state", "")
+    flow_file = _flow_path(state)
+    with open(flow_file, "w") as f:
+        json.dump(flow, f)
+
+    # Store just the state in the session cookie (small enough to fit)
+    request.session["auth_state"] = state
     return RedirectResponse(url=flow["auth_uri"])
 
 
@@ -25,9 +46,24 @@ async def login(request: Request):
 async def auth_callback(request: Request):
     """Handle the Entra ID callback after user authenticates."""
     settings = get_settings()
-    auth_flow = request.session.get("auth_flow")
-    if not auth_flow:
-        raise HTTPException(status_code=400, detail="No auth flow in session")
+
+    # Recover the auth flow from disk using the state
+    state = request.query_params.get("state", "") or request.session.get("auth_state", "")
+    if not state:
+        raise HTTPException(status_code=400, detail="No auth state found")
+
+    flow_file = _flow_path(state)
+    if not os.path.exists(flow_file):
+        raise HTTPException(status_code=400, detail="Auth flow expired. Please try logging in again.")
+
+    with open(flow_file, "r") as f:
+        auth_flow = json.load(f)
+
+    # Clean up the flow file
+    try:
+        os.remove(flow_file)
+    except OSError:
+        pass
 
     result = await acquire_token_by_code(
         settings,
@@ -45,8 +81,8 @@ async def auth_callback(request: Request):
     request.session["user_email"] = id_claims.get("preferred_username", "")
     request.session["user_roles"] = id_claims.get("roles", [])
 
-    # Clean up auth flow from session
-    request.session.pop("auth_flow", None)
+    # Clean up
+    request.session.pop("auth_state", None)
 
     logger.info("User logged in: %s", request.session.get("user_email"))
     return RedirectResponse(url="/")

@@ -65,11 +65,16 @@ async def auth_callback(request: Request):
     except OSError:
         pass
 
-    result = await acquire_token_by_code(
-        settings,
-        auth_flow,
-        dict(request.query_params),
-    )
+    try:
+        result = await acquire_token_by_code(
+            settings,
+            auth_flow,
+            dict(request.query_params),
+        )
+    except Exception as e:
+        logger.error("Token exchange failed: %s", str(e))
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(f"Token exchange error: {str(e)}", status_code=401)
 
     # Store tokens in session
     request.session["id_token"] = result.get("id_token")

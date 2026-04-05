@@ -11,7 +11,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import async_session
+from app.database import _get_session_maker
 from app.models import (
     EmailRecipientJob, EmailSendAttempt, EmailFlow, EmailFlowAttachment,
     JobStatus, FlowStatus,
@@ -34,7 +34,7 @@ async def process_pending_jobs():
     now = datetime.now(timezone.utc)
     batch_size = 50
 
-    async with async_session() as db:
+    async with _get_session_maker()() as db:
         try:
             # Find jobs that are due
             stmt = (

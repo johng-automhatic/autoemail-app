@@ -1,45 +1,48 @@
-"""Authentication routes: login, callback, logout."""
+"""Authentication routes: login, callback, logout.
 
-import json
-import hashlib
+Uses MSAL PublicClientApplication with PKCE (no client secret needed for
+the auth code exchange, avoiding server-side flow storage issues).
+Falls back to a simple approach: build the auth URL manually and exchange
+the code with ConfidentialClientApplication.acquire_token_by_authorization_code().
+"""
+
 import logging
-import os
-import tempfile
-from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import RedirectResponse
+from urllib.parse import urlencode
 
-from app.auth import get_login_url, acquire_token_by_code
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import RedirectResponse, PlainTextResponse
+
+import msal
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# Directory to store auth flows — use /home which persists on Azure App Service
-FLOW_DIR = os.path.join("/home", "auth_flows") if os.path.isdir("/home/site") else os.path.join(tempfile.gettempdir(), "auth_flows")
-os.makedirs(FLOW_DIR, exist_ok=True)
 
-
-def _flow_path(state: str) -> str:
-    """Get file path for a given auth flow state."""
-    safe = hashlib.sha256(state.encode()).hexdigest()[:16]
-    return os.path.join(FLOW_DIR, f"flow_{safe}.json")
+def _get_msal_app(settings):
+    return msal.ConfidentialClientApplication(
+        client_id=settings.azure_client_id,
+        client_credential=settings.azure_client_secret,
+        authority=settings.authority,
+    )
 
 
 @router.get("/login")
 async def login(request: Request):
     """Redirect user to Microsoft Entra ID login page."""
     settings = get_settings()
-    flow = get_login_url(settings)
 
-    # Store the auth flow on disk keyed by state parameter
-    state = flow.get("state", "")
-    flow_file = _flow_path(state)
-    with open(flow_file, "w") as f:
-        json.dump(flow, f)
-
-    # Store just the state in the session cookie (small enough to fit)
-    request.session["auth_state"] = state
-    return RedirectResponse(url=flow["auth_uri"])
+    # Build auth URL manually — avoids needing to store the flow object
+    params = {
+        "client_id": settings.azure_client_id,
+        "response_type": "code",
+        "redirect_uri": settings.app_redirect_uri,
+        "response_mode": "query",
+        "scope": "openid profile email User.Read",
+        "state": "login",
+    }
+    auth_url = f"{settings.authority}/oauth2/v2.0/authorize?{urlencode(params)}"
+    return RedirectResponse(url=auth_url)
 
 
 @router.get("/callback")
@@ -47,34 +50,32 @@ async def auth_callback(request: Request):
     """Handle the Entra ID callback after user authenticates."""
     settings = get_settings()
 
-    # Recover the auth flow from disk using the state
-    state = request.query_params.get("state", "") or request.session.get("auth_state", "")
-    if not state:
-        raise HTTPException(status_code=400, detail="No auth state found")
+    code = request.query_params.get("code")
+    error = request.query_params.get("error")
 
-    flow_file = _flow_path(state)
-    if not os.path.exists(flow_file):
-        raise HTTPException(status_code=400, detail="Auth flow expired. Please try logging in again.")
+    if error:
+        error_desc = request.query_params.get("error_description", error)
+        return PlainTextResponse(f"Login error: {error_desc}", status_code=401)
 
-    with open(flow_file, "r") as f:
-        auth_flow = json.load(f)
+    if not code:
+        return PlainTextResponse("No authorization code received.", status_code=400)
 
-    # Clean up the flow file
+    # Exchange the code for tokens using MSAL
+    app = _get_msal_app(settings)
     try:
-        os.remove(flow_file)
-    except OSError:
-        pass
-
-    try:
-        result = await acquire_token_by_code(
-            settings,
-            auth_flow,
-            dict(request.query_params),
+        result = app.acquire_token_by_authorization_code(
+            code=code,
+            scopes=["User.Read"],
+            redirect_uri=settings.app_redirect_uri,
         )
     except Exception as e:
         logger.error("Token exchange failed: %s", str(e))
-        from fastapi.responses import PlainTextResponse
         return PlainTextResponse(f"Token exchange error: {str(e)}", status_code=401)
+
+    if "error" in result:
+        error_desc = result.get("error_description", result["error"])
+        logger.error("Auth failed: %s", error_desc)
+        return PlainTextResponse(f"Auth failed: {error_desc}", status_code=401)
 
     # Store tokens in session
     request.session["id_token"] = result.get("id_token")
@@ -85,9 +86,6 @@ async def auth_callback(request: Request):
     request.session["user_name"] = id_claims.get("name", "")
     request.session["user_email"] = id_claims.get("preferred_username", "")
     request.session["user_roles"] = id_claims.get("roles", [])
-
-    # Clean up
-    request.session.pop("auth_state", None)
 
     logger.info("User logged in: %s", request.session.get("user_email"))
     return RedirectResponse(url="/")
